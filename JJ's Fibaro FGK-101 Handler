@@ -105,6 +105,7 @@ metadata {
 	}
 
 	tiles { 
+/*
 		valueTile("temperature", "device.temperature", inactiveLabel: false, width: 2, height: 2, canChangeIcon: true, canChangeBackground: true) {
         	// label:'${name}', label:'${currentValue}', unit:"XXX" work, but NOT label:'${device.name}', label:'${displayName}', unit:'${unit}', ...
 			state "temperature", label:'${currentValue}°', unit:"C", icon: "st.alarm.temperature.normal",
@@ -128,7 +129,7 @@ metadata {
                		[value: 44, color: "#ff3300"]		// 45< °C      : red  			// 45<=°C		: red
 			]
 		}
-  /*      
+  */      
         valueTile("temperatureF", "device.temperature", inactiveLabel: false, width: 2, height: 2, canChangeIcon: true, canChangeBackground: true) {
         	// label:'${name}', label:'${currentValue}', unit:"XXX" work, but NOT label:'${device.name}', label:'${displayName}', unit:'${unit}', ...
 			state "temperature", label:'${currentValue}°', unit:"F", icon: "st.alarm.temperature.normal",
@@ -152,7 +153,7 @@ metadata {
                		[value: 111, color: "#ff3300"]		// 45< °C      : red  			// 45<=°C		: red
 			]
 		}
-*/        
+        
         standardTile("contact", "device.contact") {
 			state "open", label: 'open'/* in English :'${name}' */, icon: "st.contact.contact.open", backgroundColor: "#ffa81e"
 			state "closed", label: 'closed'/* in English :'${linkText}' */, icon: "st.contact.contact.closed", backgroundColor: "#79b821"
@@ -163,10 +164,10 @@ metadata {
 		} 
         
         //Select temperatureF if Location temperature Scale is °F
-        main(["temperature"])
-		details(["temperature", "contact", "battery"])
-        //main(["temperatureF"])
-		//details(["temperatureF", "contact", "battery"])
+        //main(["temperature"])
+	//details(["temperature", "contact", "battery"])
+        main(["temperatureF"])
+	details(["temperatureF", "contact", "battery"])
 	}
 }
 
