@@ -152,7 +152,7 @@ metadata {
                		[value: 111, color: "#ff3300"]		// 45< °C      : red  			// 45<=°C		: red
 			]
 		}
-*/        
+        
         standardTile("contact", "device.contact") {
 			state "open", label: 'open'/* in English :'${name}' */, icon: "st.contact.contact.open", backgroundColor: "#ffa81e"
 			state "closed", label: 'closed'/* in English :'${linkText}' */, icon: "st.contact.contact.closed", backgroundColor: "#79b821"
