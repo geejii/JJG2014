@@ -1,5 +1,5 @@
 /**
- *  Fibaro Z-Wave FGK-101 Temperature & Door/Window Sensor Handler [v0.9.3, 15 May 2016]
+ *  Fibaro Z-Wave FGK-101 Temperature & Door/Window Sensor Handler [v0.9.3, 16 May 2016]
  *		
  *  Copyright 2014 Jean-Jacques GUILLEMAUD
  *
@@ -105,8 +105,7 @@ metadata {
 	}
 
 	tiles { 
-/*
-		valueTile("temperature", "device.temperature", inactiveLabel: false, width: 2, height: 2, canChangeIcon: true, canChangeBackground: true) {
+/*    	valueTile("temperature", "device.temperature", inactiveLabel: false, width: 2, height: 2, canChangeIcon: true, canChangeBackground: true) {
         	// label:'${name}', label:'${currentValue}', unit:"XXX" work, but NOT label:'${device.name}', label:'${displayName}', unit:'${unit}', ...
 			state "temperature", label:'${currentValue}°', unit:"C", icon: "st.alarm.temperature.normal",
 			// redondant lines added to avoid color interpolation on Dashboard (a feature or a bug ?!)
@@ -153,7 +152,7 @@ metadata {
                		[value: 111, color: "#ff3300"]		// 45< °C      : red  			// 45<=°C		: red
 			]
 		}
-        
+*/        
         standardTile("contact", "device.contact") {
 			state "open", label: 'open'/* in English :'${name}' */, icon: "st.contact.contact.open", backgroundColor: "#ffa81e"
 			state "closed", label: 'closed'/* in English :'${linkText}' */, icon: "st.contact.contact.closed", backgroundColor: "#79b821"
@@ -199,10 +198,16 @@ def zwaveEvent(physicalgraph.zwave.commands.crc16encapv1.Crc16Encap cmd) {
 
 //SmartThings v2 Hub forces CRC16-encoded replies from FGK-101 Device (v1 Hub did not)
 def zwaveEvent(physicalgraph.zwave.commands.crc16encapv1.Crc16Encap cmd) {
+	log debug "CRC16.......... cmd : ${cmd}"
     def versions = [0x20:1, 0x30: 1, 0x31: 2, 0x60: 3, 0x70: 2, 0x72: 2, 0x84: 1, 0x9C: 1]
 	// def encapsulatedCommand = cmd.encapsulatedCommand(versions)
 	def version = versions[cmd.commandClass as Integer]
+    log debug "commandClass : ${cmd.commandClass}"
+    log debug "version : ${version}"
 	def ccObj = version ? zwave.commandClass(cmd.commandClass, version) : zwave.commandClass(cmd.commandClass)
+    log debug "ccObj : ${ccObj}"
+    log debug "cmd.command : ${cmd.command}"
+    log debug "cmd.data : ${cmd.data}"
 	def encapsulatedCommand = ccObj?.command(cmd.command)?.parse(cmd.data)
 	if (!encapsulatedCommand) {
 		log.debug "Could not extract command from ${cmd}"
@@ -429,8 +434,8 @@ def zwaveEvent(physicalgraph.zwave.commands.wakeupv1.WakeUpIntervalReport cmd) {
     return result
 }
 
-def openClosed(cmd) {
-    def theState = cmd.value == 0 ? "closed" : "open"
+def openClosed(cmd, cmdValue) {
+    def theState = cmdValue == 0 ? "closed" : "open"
     if (debugLevel>=2) {log.debug "openClosed $cmd"}
     // Use closed/open sensor notification to trigger push of updated Temperature value and immediate setting of updated device parameters
     // Sometimes, Temperature forced refresh stops working : SensorMultilevelGet() Commands are stacked but not executed immediately;
@@ -444,13 +449,15 @@ def openClosed(cmd) {
     
 def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicSet cmd) {
     if (debugLevel>=2) {log.debug "basicv1.BasicSet $cmd"}
-	return openClosed(cmd)
+    def cmdValue = cmd.value
+	return openClosed(cmd, cmdValue)
 }
 
 // SensorBinaryReport should never occur since all status change notifications are asynchronous via BasicSet
 def zwaveEvent(physicalgraph.zwave.commands.sensorbinaryv1.SensorBinaryReport cmd) {
     if (debugLevel>=2) {log.debug "sensorbinaryv1.SensorBinaryReport $cmd"}
-	return openClosed(cmd)
+    def cmdValue = cmd.sensorValue
+	return openClosed(cmd, cmdValue)
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.sensoralarmv1.SensorAlarmReport cmd) {
