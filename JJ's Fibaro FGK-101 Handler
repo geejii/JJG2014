@@ -1,5 +1,5 @@
 /**
- *  Fibaro Z-Wave FGK-101 Temperature & Door/Window Sensor Handler [v0.9.2, 15 May 2016]
+ *  Fibaro Z-Wave FGK-101 Temperature & Door/Window Sensor Handler [v0.9.3, 15 May 2016]
  *		
  *  Copyright 2014 Jean-Jacques GUILLEMAUD
  *
@@ -104,10 +104,10 @@ metadata {
         }
 	}
 
-	tiles {
+	tiles { 
 		valueTile("temperature", "device.temperature", inactiveLabel: false, width: 2, height: 2, canChangeIcon: true, canChangeBackground: true) {
         	// label:'${name}', label:'${currentValue}', unit:"XXX" work, but NOT label:'${device.name}', label:'${displayName}', unit:'${unit}', ...
-			state "temperature", label:'${currentValue}°C', /* unit:'${unit}', */ icon: "st.alarm.temperature.normal",
+			state "temperature", label:'${currentValue}°', unit:"C", icon: "st.alarm.temperature.normal",
 			// redondant lines added to avoid color interpolation on Dashboard (a feature or a bug ?!)
             backgroundColors:[							// ***on IDE Simulator***		// ***on iPad App***
 				[value: 14, color: "#0033ff"],			//     °C <=14 : dark blue		//     °C <=14	: dark blue 
@@ -128,7 +128,31 @@ metadata {
                		[value: 44, color: "#ff3300"]		// 45< °C      : red  			// 45<=°C		: red
 			]
 		}
-        
+  /*      
+        valueTile("temperatureF", "device.temperature", inactiveLabel: false, width: 2, height: 2, canChangeIcon: true, canChangeBackground: true) {
+        	// label:'${name}', label:'${currentValue}', unit:"XXX" work, but NOT label:'${device.name}', label:'${displayName}', unit:'${unit}', ...
+			state "temperature", label:'${currentValue}°', unit:"F", icon: "st.alarm.temperature.normal",
+			// redondant lines added to avoid color interpolation on Dashboard (a feature or a bug ?!)
+            backgroundColors:[							// ***on IDE Simulator***		// ***on iPad App***
+				[value: 57, color: "#0033ff"],			//     °C <=14 : dark blue		//     °C <=14	: dark blue 
+				    //[value: 14.1, color: "#00ccff"],	<- decimal value IGNORED by the Tile !!!
+					//[value: 14.5],					// 15< °C <=19 : light blue		// 14< °C <15	: interpolated dark blue<-> light blue
+                    [value: 59, color: "#00ccff"],		// 16< °C <=19 : light blue		// 15<=°C <=19	: light blue
+                [value: 63, color: "#00ccff"],			// 16< °C <=19 : light blue		// 15<=°C <=19	: light blue
+					//[value: 17.5],					// 15< °C <=19 : light blue		// 14< °C <15	: interpolated light blue<->blue-green
+                	[value: 64, color: "#ccffcc"],		// 15< °C <=19 : light blue		// 18<=°C <=19	: blue-green
+				[value: 66, color: "#ccffcc"],			// 15< °C <=19 : light blue		// 19°C			: blue-green
+                    //[value: 19.5],					// 19< °C <=21 : blue-green		// 19< °C <20	: interpolated blue-green<->green
+                	[value: 68, color: "#ccff00"],		// 19< °C <=21 : blue-green		// 20<=°C <=21	: green
+				[value: 72, color: "#ccff00"],			// 21< °C <=23 : green			// 22°C			: green
+					//[value: 22.5],					// 23< °C <=45 : orange			// 22< °C <23	: interpolated green<-> orange
+					[value: 73, color: "#ffcc33"],		// 23< °C <=45 : orange  		// 23<=°C <=44	: orange
+				[value: 109, color: "#ffcc33"],			// 23< °C <=45 : orange  		// 44°C			: orange
+					//[value: 43.5],					// 45< °C      : red			// 44< °C <45	: interpolated orange <-> red
+               		[value: 111, color: "#ff3300"]		// 45< °C      : red  			// 45<=°C		: red
+			]
+		}
+*/        
         standardTile("contact", "device.contact") {
 			state "open", label: 'open'/* in English :'${name}' */, icon: "st.contact.contact.open", backgroundColor: "#ffa81e"
 			state "closed", label: 'closed'/* in English :'${linkText}' */, icon: "st.contact.contact.closed", backgroundColor: "#79b821"
@@ -138,8 +162,11 @@ metadata {
 			state "battery", label:'batt. @ ${currentValue}%' /*battery*/, unit:""
 		} 
         
+        //Select temperatureF if Location temperature Scale is °F
         main(["temperature"])
 		details(["temperature", "contact", "battery"])
+        //main(["temperatureF"])
+		//details(["temperatureF", "contact", "battery"])
 	}
 }
 
@@ -181,6 +208,15 @@ def zwaveEvent(physicalgraph.zwave.commands.crc16encapv1.Crc16Encap cmd) {
 	} else {
 		zwaveEvent(encapsulatedCommand)
 	}
+}
+
+def temperatureScaleFC(tempvalue) {
+	//FGK-101 is natively °C; convert to °F if selected in settings
+	def float tempFC = tempvalue
+	if (location.temperatureScale == "F") {
+		tempFC = tempvalue * 1.8 + 32
+	}
+	return tempFC
 }
 
 def wakeUpResponse(cmdBlock) {
@@ -258,7 +294,7 @@ def zwaveEvent(physicalgraph.zwave.commands.wakeupv1.WakeUpNotification cmd) {
 
 def zwaveEvent(physicalgraph.zwave.commands.sensormultilevelv2.SensorMultilevelReport cmd) {
         def float scaledSensorValue = cmd.scaledSensorValue
-        // Adjust measured temperature based on previous calibration
+        // Adjust measured temperature based on previous manual calibration; FGK-101 is natively °C
         switch (device.name) {
             case 'T005' :										//JJG	
             	scaledSensorValue = scaledSensorValue + 0.0554
@@ -313,8 +349,9 @@ def zwaveEvent(physicalgraph.zwave.commands.sensormultilevelv2.SensorMultilevelR
     			log.debug "Temp Adjust for : ${device.name}"
                 break;
         }
-        def float ftempSign = scaledSensorValue < 0 ? -1 : +1
-		def float ftemp = ftempSign * ((((int) (scaledSensorValue.abs()*100+5)/10)*1.0)/10)
+        //Round to nearest 1 decimal temperature value; convert to °F if needed
+        def float ftempSign = temperatureScaleFC(scaledSensorValue) < 0 ? -1 : +1
+		def float ftemp = ftempSign * ((((int) (temperatureScaleFC(scaledSensorValue).abs()*100+5)/10)*1.0)/10)
         if (debugLevel>=2) {
         	log.debug "ftempSign : ${ftempSign}"
         	log.debug "ftemp : ${ftemp}"
@@ -338,9 +375,9 @@ def zwaveEvent(physicalgraph.zwave.commands.sensormultilevelv2.SensorMultilevelR
         // Adjust temperature report sensitivity for outside thermometers whose displayName starts with "*"
         def float tempQuantum
     	if (device.displayName.substring(0,1).equals("*")) {
-        	tempQuantum = 0.9999
+        	tempQuantum = temperatureScaleFC(0.9999)
         } else {
-        	tempQuantum = 0.2999
+        	tempQuantum = temperatureScaleFC(0.2999)
         }
         log.debug "((ftemp-state.lastReportedTemp).abs()>${tempQuantum}): ${(ftemp-state.lastReportedTemp).abs()>tempQuantum}"
         if (((ftemp-state.lastReportedTemp).abs()>tempQuantum) || ((nowTime-state.lastReportTime) > state.maxEventInterval) || state.forcedWakeUp) {
@@ -349,6 +386,10 @@ def zwaveEvent(physicalgraph.zwave.commands.sensormultilevelv2.SensorMultilevelR
                 case 1:
                         map.name = "temperature"
                         map.unit = cmd.scale == 1 ? "F" : "C"
+                        //ignores Device's native temperature scale, ftemp already converted to °F if settings as such
+                        map.unit = location.temperatureScale
+                        log.debug "map.value : ${map.value}"
+                        log.debug "map.unit : ${map.unit}"
                         break;
         	}
 			if (debugLevel>=2) {
