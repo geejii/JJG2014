@@ -198,16 +198,16 @@ def zwaveEvent(physicalgraph.zwave.commands.crc16encapv1.Crc16Encap cmd) {
 
 //SmartThings v2 Hub forces CRC16-encoded replies from FGK-101 Device (v1 Hub did not)
 def zwaveEvent(physicalgraph.zwave.commands.crc16encapv1.Crc16Encap cmd) {
-	log debug "CRC16.......... cmd : ${cmd}"
+	log.debug "CRC16.......... cmd : ${cmd}"
     def versions = [0x20:1, 0x30: 1, 0x31: 2, 0x60: 3, 0x70: 2, 0x72: 2, 0x84: 1, 0x9C: 1]
 	// def encapsulatedCommand = cmd.encapsulatedCommand(versions)
 	def version = versions[cmd.commandClass as Integer]
-    log debug "commandClass : ${cmd.commandClass}"
-    log debug "version : ${version}"
+    log.debug "commandClass : ${cmd.commandClass}"
+    log.debug "version : ${version}"
 	def ccObj = version ? zwave.commandClass(cmd.commandClass, version) : zwave.commandClass(cmd.commandClass)
-    log debug "ccObj : ${ccObj}"
-    log debug "cmd.command : ${cmd.command}"
-    log debug "cmd.data : ${cmd.data}"
+    log.debug "ccObj : ${ccObj}"
+    log.debug "cmd.command : ${cmd.command}"
+    log.debug "cmd.data : ${cmd.data}"
 	def encapsulatedCommand = ccObj?.command(cmd.command)?.parse(cmd.data)
 	if (!encapsulatedCommand) {
 		log.debug "Could not extract command from ${cmd}"
