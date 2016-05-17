@@ -1,5 +1,5 @@
 /**
- *  Fibaro Z-Wave FGK-101 Temperature & Door/Window Sensor Handler [v0.9.3, 16 May 2016]
+ *  Fibaro Z-Wave FGK-101 Temperature & Door/Window Sensor Handler [v0.9.4, 17 May 2016]
  *		
  *  Copyright 2014 Jean-Jacques GUILLEMAUD
  *
@@ -53,7 +53,7 @@
  *		  0x70 - 112 : CONFIGURATION			V1 !V2!
  *		  0x72 - 114 : MANUFACTURER_SPECIFIC 	V1 !V2!
  *		  0x80 - 128 : BATTERY					V1
- *		  0x84 - 132 : WAKE_UP					!V1! V2
+ *		  0x84 - 132 : WAKE_UP					V1 !V2!
  *		  0x85 - 133 : ASSOCIATION				V1 !V2!
  *		  0x9C - 156 : SENSOR_ALARM				V1
  *	NOT used in Handler :
@@ -180,7 +180,7 @@ def parse(String description) {
 		if (debugLevel>=1) {log.debug "--------------------------Parsing... ; state.parseCount: ${state.parseCount}--------------------------"}
 		if (debugLevel>=2) {log.debug "Parsing... '${description}'"}
         def result = null
-        def cmd = zwave.parse(description, [0x20:1, 0x30:1, 0x31:2, 0x56:1, 0x60:3, 0x70:2, 0x72:2, 0x80:1, 0x84:1, 0x85:2, 0x9C:1])
+        def cmd = zwave.parse(description, [0x20:1, 0x30:1, 0x31:2, 0x56:1, 0x60:3, 0x70:2, 0x72:2, 0x80:1, 0x84:2, 0x85:2, 0x9C:1])
         if (cmd) {
                 result = zwaveEvent(cmd)
                 if (debugLevel>=1) {log.debug "Parsed ${cmd} to ${result.inspect()}"}
@@ -199,7 +199,7 @@ def zwaveEvent(physicalgraph.zwave.commands.crc16encapv1.Crc16Encap cmd) {
 //SmartThings v2 Hub forces CRC16-encoded replies from FGK-101 Device (v1 Hub did not)
 def zwaveEvent(physicalgraph.zwave.commands.crc16encapv1.Crc16Encap cmd) {
 	log.debug "CRC16.......... cmd : ${cmd}"
-    def versions = [0x20:1, 0x30: 1, 0x31: 2, 0x60: 3, 0x70: 2, 0x72: 2, 0x84: 1, 0x9C: 1]
+    def versions = [0x20:1, 0x30: 1, 0x31: 2, 0x60: 3, 0x70: 2, 0x72: 2, 0x84: 2, 0x9C: 1]
 	// def encapsulatedCommand = cmd.encapsulatedCommand(versions)
 	def version = versions[cmd.commandClass as Integer]
     log.debug "commandClass : ${cmd.commandClass}"
@@ -230,7 +230,7 @@ def wakeUpResponse(cmdBlock) {
     //All untouched parameters are supposed to be DEFAULT (as factory-set)
     if (state.isInitialized == false) {
     	if (debugLevel>=2) {log.debug "state.isInitialized : ${state.isInitialized}"}
-        cmdBlock << zwave.wakeUpV1.wakeUpIntervalSet(seconds:60*60, nodeid:zwaveHubNodeId).format() // NB : may have to wait 60mn for that value to be refreshed !
+        cmdBlock << zwave.wakeUpV2.wakeUpIntervalSet(seconds:60*60, nodeid:zwaveHubNodeId).format() // NB : may have to wait 60mn for that value to be refreshed !
         cmdBlock << "delay 1200"
         // NOTE : any asynchronous temperature query thru SensorMultilevelGet() does NOT reset the delta-Temp base value (managed by DS18B20 hardware)
         // Adjust temperature report sensitivity for outside thermometers whose displayName starts with "*"
@@ -275,13 +275,13 @@ def wakeUpResponse(cmdBlock) {
     //cmdBlock << zwave.multiChannelV3.multiChannelCapabilityGet(endPoint:2).format()	// MultiChannelCapabilityReport -> commandClass: [49], dynamic: false, endPoint: 2, genericDeviceClass: 33, specificDeviceClass: 1
     //cmdBlock << "delay 1200"
     //next Command should normally be needed only once, at configuration time, but because of a random SmartThings platform bug, the wakeUp period may be reset to 1mn !
-    //cmdBlock << zwave.wakeUpV1.wakeUpIntervalSet(seconds:60*60, nodeid:zwaveHubNodeId).format() // NB : may have to wait 30mn for that value to be refreshed !
+    //cmdBlock << zwave.wakeUpV2.wakeUpIntervalSet(seconds:60*60, nodeid:zwaveHubNodeId).format() // NB : may have to wait 30mn for that value to be refreshed !
     //cmdBlock << "delay 1200"
-    cmdBlock << zwave.wakeUpV1.wakeUpIntervalGet().format() // NB : may have to wait 60mn for that value to be refreshed !
+    cmdBlock << zwave.wakeUpV2.wakeUpIntervalGet().format() // NB : may have to wait 60mn for that value to be refreshed !
     cmdBlock << "delay 1200"
     cmdBlock << zwave.multiChannelV3.multiChannelCmdEncap(sourceEndPoint: 2, destinationEndPoint: 2, commandClass:0x31/*Sensor Multilevel*/, command:4/*Get*/).format()
     cmdBlock << "delay 1200"
-    cmdBlock << zwave.wakeUpV1.wakeUpNoMoreInformation().format()
+    cmdBlock << zwave.wakeUpV2.wakeUpNoMoreInformation().format()
     cmdBlock << "delay 2000"
     if (debugLevel>=2) {
         log.debug "wakeUpNoMoreInformation()"
@@ -290,8 +290,8 @@ def wakeUpResponse(cmdBlock) {
     return cmdBlock
 }
 
-def zwaveEvent(physicalgraph.zwave.commands.wakeupv1.WakeUpNotification cmd) {
-    	if (debugLevel>=2) {log.debug "wakeupv1.WakeUpNotification $cmd"}
+def zwaveEvent(physicalgraph.zwave.commands.wakeupv2.WakeUpNotification cmd) {
+    	if (debugLevel>=2) {log.debug "wakeupv2.WakeUpNotification $cmd"}
         def event = createEvent(descriptionText: "${device.displayName} woke up", isStateChange: true, displayed: false)
         def cmdBlock = []
         cmdBlock=wakeUpResponse(cmdBlock)
@@ -425,7 +425,7 @@ def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicReport cmd) {
 }
 
 // To check that WakeUpInterval does not revert to 1mn instead of 1h
-def zwaveEvent(physicalgraph.zwave.commands.wakeupv1.WakeUpIntervalReport cmd) {
+def zwaveEvent(physicalgraph.zwave.commands.wakeupv2.WakeUpIntervalReport cmd) {
     if (debugLevel>=2) {log.debug "WakeUpIntervalReport $cmd"}
     if (cmd.seconds!=60*60) {
     	def result = createEvent(name:"WakeUpIntervalReport", descriptionText:"${device.displayName} had ${cmd.seconds} seconds wakeUp period", isStateChange:true, displayed:true, linkText:"${device.displayName}")
@@ -526,8 +526,9 @@ def zwaveEvent(physicalgraph.zwave.Command cmd) {
 
 // When a Temperature Event got lost in transit, the Watchdog requests a forced report at next wake up
 // The "reportNext()" alarm command is used to signal back from the Watchdog SmartApp to the sleepy device
-def reportNext() {
+def reportNext(commandMsg) {
 	log.debug "reportNext !"
+    log.debug "commandMsg : ${commandMsg}"
     state.forcedWakeUp = true
     return []
 }
@@ -576,7 +577,7 @@ def configure() {
     log.debug "tempQuantumSixteenth : ${tempQuantumSixteenth}"
 	delayBetween([
 		// Make sure sleepy battery-powered sensors send their WakeUpNotifications to the hub
-		zwave.wakeUpV1.wakeUpIntervalSet(seconds:60*60, nodeid:zwaveHubNodeId).format(),
+		zwave.wakeUpV2.wakeUpIntervalSet(seconds:60*60, nodeid:zwaveHubNodeId).format(),
 		// NOTE : any asynchronous temperature query thru SensorMultilevelGet() does NOT reset the delta-Temp base value (managed by DS18B20 hardware)
 		zwave.configurationV2.configurationSet(parameterNumber: 12/*for FGK101*/, size: 1, configurationValue: [tempQuantumSixteenth]).format(),
         // inclusion of Device in Association#3 is needed to get delta-Temperature notification messages [cf Parameter#12 above]
