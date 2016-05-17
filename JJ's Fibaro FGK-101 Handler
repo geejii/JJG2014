@@ -381,9 +381,9 @@ def zwaveEvent(physicalgraph.zwave.commands.sensormultilevelv2.SensorMultilevelR
         // Adjust temperature report sensitivity for outside thermometers whose displayName starts with "*"
         def float tempQuantum
     	if (device.displayName.substring(0,1).equals("*")) {
-        	tempQuantum = temperatureScaleFC(0.9999)
+        	tempQuantum = temperatureScaleFC(0.9999)-temperatureScaleFC(0)
         } else {
-        	tempQuantum = temperatureScaleFC(0.2999)
+        	tempQuantum = temperatureScaleFC(0.2999)-temperatureScaleFC(0)
         }
         log.debug "((ftemp-state.lastReportedTemp).abs()>${tempQuantum}): ${(ftemp-state.lastReportedTemp).abs()>tempQuantum}"
         if (((ftemp-state.lastReportedTemp).abs()>tempQuantum) || ((nowTime-state.lastReportTime) > state.maxEventInterval) || state.forcedWakeUp) {
