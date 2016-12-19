@@ -1,5 +1,5 @@
 /**
- *  Fibaro Z-Wave FGK-101 Temperature & Door/Window Sensor Handler [v0.9.4.1, 17 May 2016]
+ *  Fibaro Z-Wave FGK-101 Temperature & Door/Window Sensor Handler [v0.9.5, 19 December 2016]
  *		
  *  Copyright 2014 Jean-Jacques GUILLEMAUD
  *
@@ -55,10 +55,11 @@
  *		  0x80 - 128 : BATTERY					V1
  *		  0x84 - 132 : WAKE_UP					V1 !V2!
  *		  0x85 - 133 : ASSOCIATION				V1 !V2!
+ *		  0x86 - 134 : VERSION					V1
+ *		  0x98 - 152 : SECURITY					V1 [only latest versions of FGK-101]
  *		  0x9C - 156 : SENSOR_ALARM				V1
  *	NOT used in Handler :
  *		  0x2B - 43  : SCENE_ACTIVATION			V1	
- *		  0x86 - 134 : VERSION					V1
  *
  *	 also found in FGK-101 Raw Description, in addition to Z-Wave Certificate for FGK-101\US [?!!] :
  *		+ 0x7A - 122 : FIRMWARE_UPDATE_MD		V1 V2
@@ -82,7 +83,7 @@ metadata {
 		capability "Sensor"
 		capability "Alarm"
         
-        command "reportNext"
+        command "reportNext", ["string"]
         
         attribute "reportASAP", "number"
         attribute "deviceTime", "number"
@@ -105,7 +106,7 @@ metadata {
 	}
 
 	tiles { 
-/*    	valueTile("temperature", "device.temperature", inactiveLabel: false, width: 2, height: 2, canChangeIcon: true, canChangeBackground: true) {
+    	valueTile("temperature", "device.temperature", inactiveLabel: false, width: 2, height: 2, canChangeIcon: true, canChangeBackground: true) {
         	// label:'${name}', label:'${currentValue}', unit:"XXX" work, but NOT label:'${device.name}', label:'${displayName}', unit:'${unit}', ...
 			state "temperature", label:'${currentValue}°', unit:"C", icon: "st.alarm.temperature.normal",
 			// redondant lines added to avoid color interpolation on Dashboard (a feature or a bug ?!)
@@ -128,7 +129,7 @@ metadata {
                		[value: 44, color: "#ff3300"]		// 45< °C      : red  			// 45<=°C		: red
 			]
 		}
-  */      
+  /*      
         valueTile("temperatureF", "device.temperature", inactiveLabel: false, width: 2, height: 2, canChangeIcon: true, canChangeBackground: true) {
         	// label:'${name}', label:'${currentValue}', unit:"XXX" work, but NOT label:'${device.name}', label:'${displayName}', unit:'${unit}', ...
 			state "temperature", label:'${currentValue}°', unit:"F", icon: "st.alarm.temperature.normal",
@@ -152,7 +153,7 @@ metadata {
                		[value: 111, color: "#ff3300"]		// 45< °C      : red  			// 45<=°C		: red
 			]
 		}
-        
+*/        
         standardTile("contact", "device.contact") {
 			state "open", label: 'open'/* in English :'${name}' */, icon: "st.contact.contact.open", backgroundColor: "#ffa81e"
 			state "closed", label: 'closed'/* in English :'${linkText}' */, icon: "st.contact.contact.closed", backgroundColor: "#79b821"
@@ -163,10 +164,10 @@ metadata {
 		} 
         
         //Select temperatureF if Location temperature Scale is °F
-        //main(["temperature"])
-	//details(["temperature", "contact", "battery"])
-        main(["temperatureF"])
-	details(["temperatureF", "contact", "battery"])
+        main(["temperature"])
+		details(["temperature", "contact", "battery"])
+        //main(["temperatureF"])
+		//details(["temperatureF", "contact", "battery"])
 	}
 }
 
@@ -214,6 +215,17 @@ def zwaveEvent(physicalgraph.zwave.commands.crc16encapv1.Crc16Encap cmd) {
 	} else {
 		zwaveEvent(encapsulatedCommand)
 	}
+}
+
+// Devices that support the Security command class can send messages in an
+// encrypted form; they arrive wrapped in a SecurityMessageEncapsulation
+// command and must be unencapsulated
+def zwaveEvent(physicalgraph.zwave.commands.securityv1.SecurityMessageEncapsulation cmd) {
+        def encapsulatedCommand = cmd.encapsulatedCommand([0x98: 1, 0x20: 1])
+        // can specify command class versions here like in zwave.parse
+        if (encapsulatedCommand) {
+                return zwaveEvent(encapsulatedCommand)
+        }
 }
 
 def temperatureScaleFC(tempvalue) {
@@ -509,6 +521,10 @@ def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelCapabilit
     if (debugLevel>=2) {log.debug "multichannelv3.MultiChannelCapabilityReport: ${cmd}"}
 }
  
+def zwaveEvent(physicalgraph.zwave.commands.versionv1.VersionReport cmd) {
+    if (debugLevel>=2) {log.debug "versionv1.VersionReport: ${cmd}"}
+}
+ 
 // MultiChannelCmdEncap and MultiInstanceCmdEncap are ways that devices can indicate that a message
 // is coming from one of multiple subdevices or "endpoints" that would otherwise be indistinguishable
 def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelCmdEncap cmd) {
@@ -583,7 +599,9 @@ def configure() {
         // inclusion of Device in Association#3 is needed to get delta-Temperature notification messages [cf Parameter#12 above]
         zwave.associationV2.associationSet(groupingIdentifier:3, nodeId:[zwaveHubNodeId]).format(),
         // inclusion of Device in Association#2 is needed to enable SensorAlarmReport() Command [anti-Tampering protection]
-        zwave.associationV2.associationSet(groupingIdentifier:2, nodeId:[zwaveHubNodeId]).format()
+        zwave.associationV2.associationSet(groupingIdentifier:2, nodeId:[zwaveHubNodeId]).format(),
+        // get zwave version information
+        zwave.versionV1.versionGet().format()
 	])
 }
 
