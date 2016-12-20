@@ -1,5 +1,5 @@
 /**
- *  Fibaro Z-Wave FGK-101 Temperature & Door/Window Sensor Handler [v0.9.5, 19 December 2016]
+ *  Fibaro Z-Wave FGK-101 Temperature & Door/Window Sensor Handler [v0.9.5.1, 20 December 2016]
  *		
  *  Copyright 2014 Jean-Jacques GUILLEMAUD
  *
@@ -224,6 +224,7 @@ def zwaveEvent(physicalgraph.zwave.commands.securityv1.SecurityMessageEncapsulat
         def encapsulatedCommand = cmd.encapsulatedCommand([0x98: 1, 0x20: 1])
         // can specify command class versions here like in zwave.parse
         if (encapsulatedCommand) {
+    			log.debug "encapsulatedCommand : ${encapsulatedCommand}"
                 return zwaveEvent(encapsulatedCommand)
         }
 }
@@ -259,6 +260,16 @@ def wakeUpResponse(cmdBlock) {
         cmdBlock << "delay 1200"
         // inclusion of Device in Association#2 is needed to enable SensorAlarmReport() Command [anti-Tampering protection]
         cmdBlock << zwave.associationV2.associationSet(groupingIdentifier:2, nodeId:[zwaveHubNodeId]).format()
+        cmdBlock << "delay 1200"
+        // to disable the default Z-Wave+ network security mode for ALL Associations when pairing a firmware 3.2 Z-Wave+ FGK-101
+        def byte zeroConfigurationValue = 0
+        cmdBlock << zwave.configurationV2.configurationSet(parameterNumber: 72/*for FGK101*/, size: 1, configurationValue: [zeroConfigurationValue]).format()
+        cmdBlock << "delay 1200" 
+        // inclusion of Device in Association#4 is needed for backward compatibility with non Z-Wave+ controlers
+        cmdBlock << zwave.associationV2.associationSet(groupingIdentifier:4, nodeId:[zwaveHubNodeId]).format()
+        cmdBlock << "delay 1200"
+        // inclusion of Device in Association#5 is needed for backward compatibility with non Z-Wave+ controlers
+        cmdBlock << zwave.associationV2.associationSet(groupingIdentifier:5, nodeId:[zwaveHubNodeId]).format()
         cmdBlock << "delay 1200"
         state.isInitialized = true
         if (debugLevel>=2) {log.debug "state.isInitialized : ${state.isInitialized}"}
