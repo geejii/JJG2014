@@ -321,6 +321,17 @@ def zwaveEvent(physicalgraph.zwave.commands.wakeupv2.WakeUpNotification cmd) {
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.sensormultilevelv2.SensorMultilevelReport cmd) {
+	// IMPORTANT NOTE : when the batteryLevel becomes too low, Device reports become erratic, all periodic wakeUpNotifications stop
+	// and consequently BATTERYLEVEL IS NOT UPDATED ANYMORE every 24 hours, continuing to display the last (and obsolete) reported value.
+	// Curiously, asynchronous sensorMultilevelReports continue to arrive, for some time, making the Device look (partially) "alive"
+	// This section resets the displayed battery level to 1% when the battery level is obsolete by more than 48h.
+    state.batteryInterval = (long) (24*60-45)*60*1000  // 1 day
+    def long nowTime = new Date().getTime()
+    if (nowTime-state.lastReportBattery > 3*state.batteryInterval) {  // reset batteryLevel to 1% if no update for 48-72 hours
+    	log.debug "obsolete (likely low) battery value : ${((nowTime-state.lastReportBattery)/3600000)} hours old"
+        sendEvent(name: "battery", displayed: true, isStateChange:true, unit: "%", value: 1, descriptionText: "${device.displayName} has a low battery")
+	    state.lastReportBattery = nowTime
+	}
 			//  Dirty temporary recovery fix for remote Devices which lost wakeUp capability but still get asynchromous SensorMultilevelReports
 			//  Forcing with the magnet a close/open transition after replacing the battery should (in most cases...) restore wakeUps
                 //def cmdBlock = []
@@ -392,7 +403,7 @@ def zwaveEvent(physicalgraph.zwave.commands.sensormultilevelv2.SensorMultilevelR
         }
         // Next line needed because "update()" does not seem to work anymore
     	state.maxEventInterval = (long) (4*60-10)*60*1000  // at least 1 Temperature Report event every 4 hours
-        def long nowTime = new Date().getTime()
+        nowTime = new Date().getTime()
         if (debugLevel>=2) {
         	log.debug "cmd.scaledSensorValue : ${cmd.scaledSensorValue}"
         	log.debug "correction : ${scaledSensorValue-cmd.scaledSensorValue}"
@@ -643,4 +654,3 @@ def infos() {
     log.debug "device.data: ${device.data}"   					// -> "[endpointId:0, version: 2.1, MSR:010F-0700-2000]"
     //log.debug "'device.rawDescription': ${device.rawDescription}"	// -> "0 0 0x2001 0 0 0 c 0x30 0x9C 0x60 0x85 0x72 0x70 0x86 0x80 0x84 0x7A 0xEF 0x2B"
 }
-
